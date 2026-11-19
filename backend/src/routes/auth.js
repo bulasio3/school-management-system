@@ -1,7 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const db = require('../db');
+const User = require('../models/User');
 const wrap = require('../asyncHandler');
 const { authenticate, authorize } = require('../middleware/auth');
 
@@ -14,20 +14,19 @@ router.post('/login', wrap(async (req, res) => {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
-  const { rows } = await db.query('SELECT * FROM users WHERE email = $1', [email.toLowerCase()]);
-  const user = rows[0];
+  const user = await User.findOne({ email: String(email).toLowerCase().trim() });
 
   if (!user || !user.is_active || !(await bcrypt.compare(password, user.password_hash))) {
     return res.status(401).json({ error: 'Invalid email or password' });
   }
 
   const token = jwt.sign(
-    { id: user.id, name: user.name, role: user.role },
+    { id: user._id, name: user.name, role: user.role },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '8h' }
   );
 
-  res.json({ token, user: { id: user.id, name: user.name, role: user.role } });
+  res.json({ token, user: { id: user._id, name: user.name, role: user.role } });
 }));
 
 // POST /api/auth/users  (admin creates accounts)
@@ -36,23 +35,13 @@ router.post('/users', authenticate, authorize('admin'), wrap(async (req, res) =>
   if (!name || !email || !password || !role) {
     return res.status(400).json({ error: 'name, email, password and role are required' });
   }
-  if (password.length < 8) {
+  if (String(password).length < 8) {
     return res.status(400).json({ error: 'Password must be at least 8 characters' });
   }
 
-  try {
-    const hash = await bcrypt.hash(password, 10);
-    const { rows } = await db.query(
-      `INSERT INTO users (name, email, phone, password_hash, role)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, name, email, role`,
-      [name, email.toLowerCase(), phone || null, hash, role]
-    );
-    res.status(201).json(rows[0]);
-  } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Email already in use' });
-    if (err.code === '23514') return res.status(400).json({ error: 'Invalid role' });
-    throw err;
-  }
+  const password_hash = await bcrypt.hash(password, 10);
+  const user = await User.create({ name, email, phone, password_hash, role });
+  res.status(201).json({ id: user._id, name: user.name, email: user.email, role: user.role });
 }));
 
 // GET /api/auth/me

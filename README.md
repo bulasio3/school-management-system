@@ -4,7 +4,7 @@ A web-based school management system with attendance, grading, fee management, S
 
 ## Structure
 
-- `backend/`: Express + PostgreSQL API (Phase 1: auth, classes, students, attendance)
+- `backend/`: Express + MongoDB API (Phase 1: auth, classes, students, attendance)
 - `frontend/`: React app (coming next)
 
-See `backend/README.md` for setup instructions.
+See `backend/README.md` for setup and deployment instructions.

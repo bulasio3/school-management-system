@@ -1,24 +1,27 @@
-# School Management System: Backend (Phase 1)
+# School Management System: Backend
 
-Express + PostgreSQL API with JWT login, role-based access, classes, students and attendance.
+Express + MongoDB (Mongoose) API with JWT login, role-based access, classes, students and attendance.
 
-## Setup
+## Run locally
 
-1. Install Node.js 18+ and PostgreSQL 13+.
-2. Create a database:  `createdb school_db`  (or use pgAdmin)
-3. Copy the env file and edit it:  `cp .env.example .env`
-   - Set DATABASE_URL to match your PostgreSQL username/password.
-   - Set JWT_SECRET to a long random string.
-4. Install and initialise:
-   ```
+1. Install Node.js 18+ and either MongoDB locally or a free MongoDB Atlas cluster.
+2. `cp .env.example .env` and set `MONGODB_URI` and `JWT_SECRET`.
+3. ```
    npm install
-   npm run db:init
-   npm run db:seed
+   npm run db:seed     # creates the first admin and prints its password once
    npm run dev
    ```
-5. Test it:  http://localhost:4000/api/health
+4. Check http://localhost:4000/api/health, which should show `"database":"connected"`.
 
-Default admin (change it!): `admin@school.test` / `Admin@12345`
+## Deploy on Render (with MongoDB Atlas)
+
+1. In MongoDB Atlas create a free cluster, a database user, and under *Network Access* allow `0.0.0.0/0` (Render's IPs change). Copy the connection string.
+2. On Render: **New > Web Service**, connect this repo.
+   - Root Directory: `backend`
+   - Build Command: `npm install`
+   - Start Command: `npm start`
+3. Environment variables: `MONGODB_URI`, `JWT_SECRET` (long random string), `FRONTEND_URL` (once the frontend is live).
+4. Create the admin once, from your own computer, with `MONGODB_URI` in your `.env` pointing at Atlas: `npm run db:seed`.
 
 ## Endpoints
 
@@ -27,23 +30,17 @@ Default admin (change it!): `admin@school.test` / `Admin@12345`
 | POST | /api/auth/login | public | Log in, returns JWT |
 | POST | /api/auth/users | admin | Create a user |
 | GET | /api/auth/me | any | Current user |
-| GET/POST | /api/classes | admin (POST), staff (GET) | List / create classes |
-| GET/POST | /api/students | admin (POST), staff (GET) | List / create students |
-| GET/PUT | /api/students/:id | admin (PUT), staff (GET) | One student |
+| GET / POST | /api/classes | staff / admin | List / create classes |
+| GET / POST | /api/students | staff / admin | List / create students |
+| GET / PUT | /api/students/:id | staff / admin | One student |
 | GET | /api/attendance?class_id=&date= | admin, teacher | Class register for a date |
 | POST | /api/attendance/bulk | admin, teacher | Save a whole register (upsert) |
 | GET | /api/attendance/summary?class_id=&from=&to= | admin, teacher | Attendance totals |
 
-Send the token as: `Authorization: Bearer <token>`
+Send the token as `Authorization: Bearer <token>`. Dates are `YYYY-MM-DD`.
 
-## Quick test with curl
+## Design notes
 
-```
-# 1. login
-curl -X POST localhost:4000/api/auth/login -H "Content-Type: application/json" \
-  -d '{"email":"admin@school.test","password":"Admin@12345"}'
-
-# 2. create a class (replace TOKEN)
-curl -X POST localhost:4000/api/classes -H "Authorization: Bearer TOKEN" \
-  -H "Content-Type: application/json" -d '{"name":"S.2","stream":"East","year":2026}'
-```
+- All ids are UUID strings, so records created offline never collide.
+- A unique index on (student_id, date) prevents duplicate attendance and makes offline sync safe to repeat.
+- Changes to students are written to the `auditlogs` collection (old and new values).

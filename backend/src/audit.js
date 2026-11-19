@@ -1,13 +1,16 @@
-const db = require('./db');
+const AuditLog = require('./models/AuditLog');
 
 // Records who changed what. Call after important writes.
 async function logAudit({ userId, action, table, recordId, oldValue = null, newValue = null }) {
   try {
-    await db.query(
-      `INSERT INTO audit_logs (user_id, action, table_name, record_id, old_value, new_value)
-       VALUES ($1,$2,$3,$4,$5,$6)`,
-      [userId, action, table, String(recordId), oldValue, newValue]
-    );
+    await AuditLog.create({
+      user_id: userId,
+      action,
+      table_name: table,
+      record_id: String(recordId),
+      old_value: oldValue,
+      new_value: newValue,
+    });
   } catch (err) {
     console.error('Audit log failed:', err.message);
   }
